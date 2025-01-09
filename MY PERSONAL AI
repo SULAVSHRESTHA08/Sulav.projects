@@ -1,0 +1,81 @@
+import os
+import google.generativeai as genai
+from dotenv import load_dotenv
+import speech_recognition as sr
+import pyttsx3
+
+# Load environment variables
+load_dotenv()
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+
+# Initialize Text-to-Speech Engine
+engine = pyttsx3.init()
+engine.setProperty("rate", 150)  # Adjust speed of speech
+engine.setProperty("volume", 0.9)  # Adjust volume
+
+# Speech Recognition setup
+recognizer = sr.Recognizer()
+
+# Create the model
+generation_config = {
+    "temperature": 1,
+    "top_p": 0.95,
+    "top_k": 40,
+    "max_output_tokens": 8192,
+    "response_mime_type": "text/plain",
+}
+
+model = genai.GenerativeModel(
+    model_name="gemini-1.5-flash-8b",
+    generation_config=generation_config,
+    system_instruction=(
+        "you are my personal ai assistant and give me the answer of my question which i ask y=to you and the answers must be factual and well searched and true"
+)
+)
+history = []
+
+def speak(text):
+    """Convert text to speech."""
+    engine.say(text)
+    engine.runAndWait()
+
+def listen():
+    """Capture voice input and convert to text."""
+    with sr.Microphone() as source:
+        print("Listening...")
+        recognizer.adjust_for_ambient_noise(source)
+        try:
+            audio = recognizer.listen(source, timeout=1000)  # 10 seconds timeout
+            command = recognizer.recognize_google(audio)
+            print(f"You said: {command}")
+            return command
+        except sr.UnknownValueError:
+            speak("Sorry, I couldn't understand. Can you repeat?")
+            return None
+        except sr.RequestError:
+            speak("Network error. Please check your connection.")
+            return None
+
+# Start the assistant
+# speak("Hello Sulav. I am your personal assistant. How can I help you?")
+print("Bot: Hello Sulav. I am your personal assistant. How can I help you?")
+
+while True:
+    user_input = listen()
+    if user_input:
+        if user_input.lower() in ["exit", "quit", "bye","bye-bye"]:
+            speak("Goodbye Sulav! Have a great day!")
+            print("Bot: Goodbye Sulav! Have a great day!")
+            break
+
+        # Process the user input
+        chat_session = model.start_chat(history=history)
+        response = chat_session.send_message(user_input)
+        model_response = response.text
+
+        print(f"Bot: {model_response}")
+        speak(model_response)
+
+        # Append to history
+        history.append({"role": "user", "parts": [user_input]})
+        history.append({"role": "model", "parts": [model_response]})
